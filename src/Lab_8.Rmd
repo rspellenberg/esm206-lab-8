@@ -1,0 +1,178 @@
+---
+title: "Lab_8"
+author: "C.L. Jerde"
+date: "2022-11-13"
+output:   
+  html_document:
+    code_folding: hide
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, message=FALSE, warning=FALSE, results=FALSE)
+library(tidyverse)
+library(here)
+library(ggpubr) # for some graphic applications that extend ggplot2
+library(janitor)
+library(broom) # used to make tables
+library(knitr) # used to make table
+```
+
+# Lab 8: Dummy Variables, tables, and model selection using BIC
+
+**Set up an R project** and load up the tree_mod.csv data. You will need to  packages `knitr` and `broom`. You should also set up code folding for practice and set the default options of your chunks to `echo= TRUE`, `message=FALSE`, `warning = FALSE`, `results = FALSE` and then we will modify them for each chunk as we need different information displayed.  This is practice for making a professional looking document. Look at the difference between this lab's .RMD file and the .HTML file.
+
+**This week we will:**
+1. Revisit multiple linear regression and use dummy variables
+2. Investigate information criteria used for model selection
+3. Organize the information into a table worthy of a professional document using `knitr` and `broom` but then manipulate those tables to pull information out that we want
+4. Leave time for lab and lecture questions
+
+### Example models using dummy variables 
+For our dummy variable exploration, let us use the penguins data once again. Inspect the data. We have a number of "categorical" variables that could be investigated, namely sex, species, and island. In the `lm()` framework, categorical variables can be investigated as dummy variables.
+```{r}
+penguins <- read_csv(here("data","penguins.csv"))
+```
+
+
+**Useful functions for data inspection**  
+This is an example of looking at correlation between variables for all continuous variables in the data set. We showed this in lecture to discuss collinearity and multicollinearity exploration.  We won't need this for today's lab, but do explore the `pairs()` and `cor()` functions.  
+```{r,results=TRUE}
+#examples of pairs() and cor()
+
+#look at continuous variables used in multiple linear regression
+penguins_mod<-penguins %>% select(bill_length_mm, bill_depth_mm, flipper_length_mm, body_mass_g) %>% drop_na()
+
+pairs(penguins_mod)
+cor(penguins_mod)
+```
+
+
+
+Let us look at one species on one island
+```{r}
+penguins_Adelie_Torgersen <- penguins %>% filter(species=="Adelie") %>%
+  filter(island=="Torgersen") %>% 
+  drop_na() # last bit drops all the NAs from the data
+```
+
+Consider four linear models:
+
+Model_0 is body mass does not rely on flipper length nor sex
+
+Model_1 is body mass depends on flipper length only
+
+Model_2 is body mass depends on sex only
+
+Model_3 is body mass depends on flipper length and sex
+
+```{r}
+# This is a useful way to organize models
+# It does not print the model output, but they are all fit and the information stored
+
+model_0 <- lm(body_mass_g ~ 1, data=penguins_Adelie_Torgersen)
+model_1 <- lm(body_mass_g ~ flipper_length_mm, data=penguins_Adelie_Torgersen)
+model_2 <- lm(body_mass_g ~ sex, data=penguins_Adelie_Torgersen)
+model_3 <- lm(body_mass_g ~ flipper_length_mm +sex, data=penguins_Adelie_Torgersen)
+
+# model outputs saved to a file
+model_0_out<-summary(model_0)
+model_1_out<-summary(model_1)
+model_2_out<-summary(model_2)
+model_3_out<-summary(model_3)
+```
+
+Last week we talked about making the plots and inspecting the output for multiple models. Let us step through the models individually.
+
+**Model 0** 
+This null model captures the idea that there is no explanatory power of flipper length or sex.  It is useful for comparison to other models with more complexity. 
+```{r, results=TRUE}
+out_0_tidy <- tidy(model_0) # for the coefficient output
+out_0_glance <- glance(model_0) # for the model output
+
+kable(out_0_tidy, format = "markdown", digits = 3,caption = "Tests of linear model (model 0) coefficients")
+
+kable(out_0_glance, format = "markdown", digits = 3,caption = "Tests of linear model (model 0)")
+```
+What do you conclude about the null model (model 0) given the coefficient and model output? Why are there so many NA's in the model output?
+
+**Model 1** 
+This model is a simple linear regression.  
+```{r, results = TRUE}
+out_1_tidy <- tidy(model_1) # for the coefficient output
+out_1_glance <- glance(model_1) # for the model output
+
+kable(out_1_tidy, format = "markdown", digits = 3,caption = "Tests of linear model (model 1) coefficients")
+
+kable(out_1_glance, format = "markdown", digits = 3,caption = "Tests of linear model (model 1)")
+```
+
+What do you conclude about the  model (model 1) given the coefficient and model output? 
+
+
+**Model 2** 
+This model with only a dummy variable for sex.  
+```{r, results = TRUE}
+out_2_tidy <- tidy(model_2) # for the coefficient output
+out_2_glance <- glance(model_2) # for the model output
+
+kable(out_2_tidy, format = "markdown", digits = 3,caption = "Tests of linear model (model 2) coefficients")
+
+kable(out_2_glance, format = "markdown", digits = 3,caption = "Tests of linear model (model 2)")
+```
+
+What do you conclude about the  model (model 2) given the coefficient and model output? 
+
+**An aside** How does model 2 compare to a two sample t-test? Look at the t values and p values of the t test and the dummy variable "sexmale" output with `lm()`.  Punchline, two sample t-tests can be a model within a suite of linear models by using dummy variable (two factors, i.e. males or females).  With more factors (2+) and the use of dummy variables, we can do ANOVA.
+
+```{r, results=TRUE}
+#t-test code
+male<-penguins_Adelie_Torgersen %>% filter(sex=="male")
+male<-male$body_mass_g
+female<-penguins_Adelie_Torgersen %>% filter(sex=="female")
+female<-female$body_mass_g
+
+t.test(male,female,var.equal = TRUE)
+```
+
+**Model 3** 
+This model with  a dummy variable for sex and a continuous variable of flipper length.  
+```{r, results = TRUE}
+out_3_tidy <- tidy(model_3) # for the coefficient output
+out_3_glance <- glance(model_3) # for the model output
+
+kable(out_3_tidy, format = "markdown", digits = 3,caption = "Tests of linear model (model 3) coefficients")
+
+kable(out_3_glance, format = "markdown", digits = 3,caption = "Tests of linear model (model 3)")
+```
+
+What do you conclude about the  model (model 3) given the coefficient and model output?
+
+
+### Example of model selection
+Another approach to choosing the "best model" is using information criteria.  Here we will use the BIC (The Bayesian Information Criteria) also known as the SIC as it should not be confused with Bayesian Statistics.  The BIC is robust and has better error properties than the AIC, The Akaike's Information Criteria, a very popular and commonly applied model selection function. However, see this recent publication for why BIC should be used over AIC [here](https://www.frontiersin.org/articles/10.3389/fevo.2019.00372/full).
+
+The BIC is:
+
+$SIC = ln(n)*k - 2*ln(L)$
+
+where, $n$ is the number of observations, $k$ is the number of parameters, and $L$ is the likelihood.  All of these values can be pulled from the model statistics in the `lm()` output.
+
+```{r}
+# We can call the BIC directly or as a list of models like this:
+BIC_list<-c(BIC(model_0), BIC(model_1),BIC(model_2), BIC(model_3))
+
+# we may want to merge data and select only certain model statistics. Here is a way to manipulate the data to get a table.
+model_output <-rbind(data.frame(glance(model_0)),data.frame(glance(model_1)),data.frame(glance(model_2)), data.frame(glance(model_3))) %>% select(adj.r.squared, BIC) 
+
+# here we calculate the delta BIC or the distance in BIC from the lowest value (the best model) and the other models.
+model_output <- mutate(model_output, delta.BIC = BIC-min(BIC_list))
+model_output$model<-c("Model 0", "Model 1","Model 2", "Model 3")
+model_output<-model_output[,c("model","adj.r.squared", "BIC", "delta.BIC" )]
+```
+
+```{r, results=TRUE}
+#this makes a nice table of the model name, followed by some useful statistics for model selection.
+kable(model_output, format = "markdown", digits = 3,caption = "R-Squared Adjusted, BIC, and Delta.BIC for the penguin models. Delta BIC > 7 indicates models that should be dismissed from further consideration.")
+```
+How would we interpret this model selection table? See Box 3 [here](https://www.frontiersin.org/articles/10.3389/fphys.2019.01166/full) for conceptual interpretation of delta values of information criteria. 
+
