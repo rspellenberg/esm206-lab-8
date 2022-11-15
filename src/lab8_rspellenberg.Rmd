@@ -1,0 +1,155 @@
+---
+title: "RSpellenberg_Rmarkdown"
+author: "R. Spellenberg"
+date: "2022-11-15"
+output: 
+  html_document:
+    code_folding: hide
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, message = FALSE, warning = FALSE, results = FALSE)
+library(tidyverse)
+library(here)
+library(ggpubr)
+library(janitor)
+library(broom)
+library(knitr)
+```
+
+# Import the data
+```{r, message=FALSE}
+penguins <- read_csv(here("data", "penguins.csv"))
+```
+
+# Subset of penguins data for looking at correlations
+```{r, results=TRUE}
+# mod when you want to look at a subset
+penguins_mod <- penguins %>% 
+  select(bill_length_mm, bill_depth_mm, flipper_length_mm, body_mass_g) %>%
+  drop_na()
+
+#visual
+pairs(penguins_mod)
+
+#numerical - stronger correlation when closer to 1 (neg or pos); sign determines direction
+cor(penguins_mod)
+```
+
+### Models
+
+### subset the data
+```{r}
+penguins_Adelie_Torgerson <- penguins %>%
+  filter(species=="Adelie") %>% 
+  filter(island=="Torgersen") %>% 
+  drop_na()
+```
+
+### Run all the models
+```{r}
+#here are the models
+#niave model that there is no x that influences y
+model_0 <- lm(body_mass_g ~ 1, data = penguins_Adelie_Torgerson)
+
+# simple regression model body mass is a function of flipper length
+model_1 <- lm(body_mass_g ~ flipper_length_mm, data = penguins_Adelie_Torgerson)
+
+# simple linear regression body mass as a function of sex (ttest)
+model_2 <- lm(body_mass_g ~ sex, data = penguins_Adelie_Torgerson)
+
+# multiple regression body mass as a function of flipper length and sex (ANOVA)
+model_3 <- lm(body_mass_g ~ flipper_length_mm + sex, data = penguins_Adelie_Torgerson)
+
+#model outputs
+model_0_out <- summary(model_0)
+model_1_out <- summary(model_1)
+model_2_out <- summary(model_2)
+model_3_out <- summary(model_3)
+
+```
+
+### Table and data gymnastics
+
+Model_0
+```{r, results=TRUE}
+out_0_tidy <- tidy(model_0)
+out_0_glance <- glance(model_0)
+
+kable(out_0_tidy, format = "markdown", digits = 3, caption = "Tests of linear model (model_0) coefficients")
+kable(out_0_glance, format = "markdown", digits = 3, caption = "Tests of linear model (model_0)")
+```
+
+Model_1
+```{r, results=TRUE}
+out_1_tidy <- tidy(model_1)
+out_1_glance <- glance(model_1)
+
+kable(out_1_tidy, format = "markdown", digits = 3, caption = "Tests of linear model (model_1) coefficients")
+kable(out_1_glance, format = "markdown", digits = 3, caption = "Tests of linear model (model_1)")
+
+#for every mm increase in flipper length, ~33 gram increase in body mass
+```
+
+Model_2
+```{r, results=TRUE}
+out_2_tidy <- tidy(model_2)
+out_2_glance <- glance(model_2)
+
+kable(out_2_tidy, format = "markdown", digits = 3, caption = "Tests of linear model (model_2) coefficients")
+kable(out_2_glance, format = "markdown", digits = 3, caption = "Tests of linear model (model_2)")
+
+#mean value of female penguin body mass is 3395g, male penguin add 600g
+```
+
+Model_3
+```{r, results=TRUE}
+out_3_tidy <- tidy(model_3)
+out_3_glance <- glance(model_3)
+
+kable(out_3_tidy, format = "markdown", digits = 3, caption = "Tests of linear model (model_3) coefficients")
+kable(out_3_glance, format = "markdown", digits = 3, caption = "Tests of linear model (model_3)")
+
+#"full model"
+#mean value of female 1963 and an increase in flipper length, increase mass by 7.6g. Male penguins +588
+```
+
+### Model Selection
+```{r}
+BIC_list <- c(BIC(model_0), BIC(model_1), BIC(model_2), BIC(model_3))
+BIC_list
+```
+### Making it look better
+```{r, results=TRUE}
+model_output <- rbind(data.frame(glance(model_0)), data.frame(glance(model_1)), data.frame(glance(model_2)), data.frame(glance(model_3)))
+
+model_output
+```
+### Data Gymnastics to make a pretty table
+```{r}
+model_output <- model_output %>% 
+  select(adj.r.squared, BIC)
+
+#adding delta BIC
+model_output <- mutate(model_output, delta.BIC = BIC - min(BIC_list))
+
+#adding model names
+model_output$model <- c("Model 0", "Model 1", "Model 2", "Model 3")
+
+model_output <- model_output[, c("model", "adj.r.squared", "BIC", "delta.BIC")]
+
+model_output
+
+#pvalue fail to reject or reject, BIC as a gradient
+#use adjusted r squared when have more than one variable 
+```
+
+### Output into R markdown
+```{r, results=TRUE}
+kable(model_output, format = "markdown", digits = 3, caption = "R-Squared Adjusted, BIC, and Delta.BIC for the penguin models. Delta BIC > 7 indicates models that should be dismissed from further consideration")
+```
+
+
+
+
+
